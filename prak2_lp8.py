@@ -1,54 +1,52 @@
-from distutils.log import warn
-from kanren.facts import Relation, facts, fact
-from kanren.core import var, run
-from kanren.goals import membero
-from kanren import vars
+from ai_pkg.search import *
 
-ukuran = Relation()
-warna = Relation()
-gelap = Relation()
+start = "NewYork"
+goal = "LosAngeles"
 
-facts(ukuran, ("beruang", "besar"),
-              ("gajah", "besar"),
-              ("kucing", "kecil"))
+city_map = Graph(dict(
+           NewYork=dict(Chicago=1000, Toronto=800, Denver=1900),
+           Chicago=dict(Denver=1000),
+           Denver=dict(LosAngeles=1000, Houston=1500, Urbana=1000),
+           Houston=dict(LosAngeles=1500),
+           Toronto=dict(LosAngeles=1800, Chicago=500, Calgary=1500)),
+directed=True)
 
-facts(warna, ("beruang", "cokelat"),
-             ("kucing", "hitam"),
-             ("gajah", "kelabu"))
+class CityProblem(Problem):
+    def __init__(self, initial, goal, graph): 
+        Problem.__init__(self, initial, goal)
+        self.graph = graph
+    def actions(self, A):
+        return list(self.graph.get(A).keys())
+    def result(self, state, action):
+        return action
+    def path_cost(self, cost, A, action, B):
+        return cost + (self.graph.get(A, B) or infinity)
 
-fact(gelap, "hitam")
-fact(gelap, "cokelat")
+def breadth_first_search(problem):
+    global track_path
+    frontier = deque([Node(problem.initial)])
+    explored = set()
+    track_path = [problem.initial]
+    while frontier:
+        node = frontier.popleft()
+        if problem.goal_test(node.state):
+            return node
+        explored.add(node.state)
+        expanded = node.expand(problem)
+        for child in expanded:
+            track_path.append(child.state)
+            if child.state not in explored and child not in frontier:
+                if problem.goal_test(child.state):
+                    return child
+                frontier.append(child)
+    return None
 
-x = var()
-y = var()
-kecil = run(0, x, ukuran(x, "kecil"))
-print("hewan berukuran kecil: ", kecil)
-
-hewan_besar = run(0, x, ukuran(x, "besar"))
-print("hewan berukuran besar: ", hewan_besar)
-
-warna_hewan = run(0, x, warna(x, "cokelat"))
-print("hewan berwarna cokelat: ", warna_hewan)
-
-q1 = run(0, x, membero(x, warna_hewan), membero(x, hewan_besar))
-print("Hewan yang berwarna cokelat dan besar adalah: ", q1)
-
-gelapx = run(0, x, gelap(x, "hitam"))
-for hitam in gelapx:
-    fact(warna, ("hitam"), hitam)
-black = run(0, x, warna(x, "hitam"))
-
-gelaps = run(0, x, gelap(x, "cokelat"))
-for cokelat in gelaps:
-    fact(warna, ("cokelat"), cokelat)
-brown = run(0, x, warna(x, "cokelat"))
-print("Hewan berwarna gelap: ", black, brown)
-
-q3 = run(0, x, membero(x, hewan_besar), membero(x, warna_hewan))
-print("hewan besar berwarna gelap adalah: ", q3)
-
-jenis = Relation()
-facts(jenis, ("beruang", "karnivora"),
-              ("kucing", "karnivora"))
-jenisx = run(0, x, jenis(x, "karnivora"))
-print("Hewan karnivora adalah: ", jenisx)
+if __name__=='__main__':
+    track_path = []
+    romania_problem = CityProblem(start, goal , city_map)
+    node = breadth_first_search(romania_problem)
+    if node is not None:
+        final_path = node.solution()
+        final_path.insert(0, start)
+        print('TRACKING PATH: ', ' -> '.join(track_path))
+        print('SOLUTION PATH: ', ' -> '.join(final_path))
